@@ -41,11 +41,15 @@ func handle (conn net.Conn) {
 		received := bytes.Buffer{}
 		buff := make([]byte, 1024)
 
+
 		_, err := conn.Read(buff)
 		if err != nil && err == io.EOF {
 			break
 		}
+		correlation_id := buff[8:12]
+		msg := []byte{0, 0, 0, 0}
 		received.Write(buff)
-		conn.Write([]byte{0, 0, 0, 0, 0, 0, 0, 7})
+		res := append(msg, correlation_id...)
+		conn.Write(res)
 	}
 }
