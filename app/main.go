@@ -5,7 +5,7 @@ import (
 	"net"
 	"os"
 	"io"
-	"bytes"
+	"encoding/binary"
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -38,20 +38,23 @@ func handle (conn net.Conn) {
 	defer conn.Close()
 	
 	for {
-		received := bytes.Buffer{}
 		buff := make([]byte, 1024)
-
 
 		_, err := conn.Read(buff)
 		if err != nil && err == io.EOF {
 			break
 		}
 
-		correlation_id := buff[8:12]
-		message_size := []byte{0, 0, 0, 0}
-		err_code := []byte{0, 35}
-		received.Write(buff)
-		res := append(message_size, append(correlation_id, err_code...)...)
-		conn.Write(res)
+		data := binary.BigEndian.Uint16(buff[6:8])
+		err_code := 0
+
+		if data >4 {
+			err_code = 35
+		}
+
+		// correlation_id := buff[8:12]
+		message_size := [23]byte{0, 0, 0, 19, buff[8], buff[9], buff[10], buff[11], 0, byte(err_code), 2, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0}
+
+		conn.Write(message_size[:])
 	}
 }
