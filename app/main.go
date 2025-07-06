@@ -46,10 +46,12 @@ func handle (conn net.Conn) {
 		if err != nil && err == io.EOF {
 			break
 		}
+
 		correlation_id := buff[8:12]
-		msg := []byte{0, 0, 0, 0}
+		message_size := []byte{0, 0, 0, 0}
+		err_code := []byte{0, 35}
 		received.Write(buff)
-		res := append(msg, correlation_id...)
+		res := append(message_size, append(correlation_id, err_code...)...)
 		conn.Write(res)
 	}
 }
