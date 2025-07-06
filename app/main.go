@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"io"
+	"bytes"
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -21,9 +23,29 @@ func main() {
 		fmt.Println("Failed to bind to port 9092")
 		os.Exit(1)
 	}
-	_, err = l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+	// fmt.Println("Listening to TCP server 0.0.0.0:9092")
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handle(conn)
+	}
+}
+
+func handle (conn net.Conn) {
+	defer conn.Close()
+	
+	for {
+		received := bytes.Buffer{}
+		buff := make([]byte, 1024)
+
+		_, err := conn.Read(buff)
+		if err != nil && err == io.EOF {
+			break
+		}
+		received.Write(buff)
+		conn.Write([]byte{0, 0, 0, 0, 0, 0, 0, 7})
 	}
 }
