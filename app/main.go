@@ -32,7 +32,7 @@ func main() {
 	data := make([]byte, 12)
 	conn.Read(data)
 	corr := data[8:12]
-	version, err := strconv.Atoi(string(data[7:8]))
+	version, err := strconv.Atoi(string(data[6:8]))
 	if err != nil {
 		fmt.Println("Error converting version:", err)
 		os.Exit(1)
