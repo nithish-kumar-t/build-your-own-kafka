@@ -1,10 +1,10 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -32,15 +32,12 @@ func main() {
 	data := make([]byte, 12)
 	conn.Read(data)
 	corr := data[8:12]
-	version, err := strconv.Atoi(string(data[6:8]))
-	if err != nil {
-		fmt.Println("Error converting version:", err)
-		os.Exit(1)
-	}
+	version := binary.BigEndian.Uint32(data[6:10])
+
 	msg := []byte{0, 0, 0, 0}
 
 	if version > 4 {
-		err := []byte{0, 23}
+		err := []byte{0, 35}
 		conn.Write(append(append(msg, corr...), err...))
 	} else {
 		conn.Write(append(msg, corr...))
