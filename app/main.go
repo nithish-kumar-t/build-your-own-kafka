@@ -28,5 +28,5 @@ func main() {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
-	conn.Write([]byte{7})
+	conn.Write([]byte{0, 7})
 }
