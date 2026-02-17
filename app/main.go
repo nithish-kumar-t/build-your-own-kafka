@@ -28,8 +28,9 @@ func main() {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
-	data := make([]byte, 8)
+	data := make([]byte, 12)
 	conn.Read(data)
 	corr := data[8:12]
-	conn.Write(append([]byte{0, 0, 0, 0}, corr...))
+	msg := []byte{0, 0, 0, 0}
+	conn.Write(append(msg, corr...))
 }
