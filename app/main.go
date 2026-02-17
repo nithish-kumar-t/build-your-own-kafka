@@ -31,5 +31,5 @@ func main() {
 	data := make([]byte, 8)
 	conn.Read(data)
 	corr := data[8:12]
-	conn.Write(append([]byte{0, 0, 0, 0, 0, 0, 0}, corr...))
+	conn.Write(append([]byte{0, 0, 0, 0}, corr...))
 }
