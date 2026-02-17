@@ -32,14 +32,18 @@ func main() {
 	data := make([]byte, 12)
 	conn.Read(data)
 	corr := data[8:12]
-	version := binary.BigEndian.Uint32(data[6:10])
+	version := binary.BigEndian.Uint16(data[6:8])
 
-	msg := []byte{0, 0, 0, 0}
+	// msg := []byte{0, 0, 0, 0}
 
 	if version > 4 {
 		err := []byte{0, 35}
-		conn.Write(append(append(msg, corr...), err...))
+		msgSize := []byte{0, 0, 0, byte(len(corr) + len(err))}
+		conn.Write(append(append(msgSize, corr...), err...))
 	} else {
-		conn.Write(append(msg, corr...))
+		versions := append([]byte{0, 0}, []byte{0, byte(version)}...)
+
+		msgSize := []byte{0, 0, 0, byte(len(versions) + len(corr))}
+		conn.Write(append(append(msgSize, corr...), versions...))
 	}
 }
