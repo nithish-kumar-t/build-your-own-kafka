@@ -8,6 +8,57 @@ import (
 	"os"
 )
 
+// Helpers to decode Kafka compact types (sufficient for small test payloads).
+func readUvarint(b []byte, pos *int) (uint64, bool) {
+	v, n := binary.Uvarint(b[*pos:])
+	if n <= 0 {
+		return 0, false
+	}
+	*pos += n
+	return v, true
+}
+
+func skipTagBuffer(b []byte, pos *int) bool {
+	sizePlusOne, ok := readUvarint(b, pos)
+	if !ok {
+		return false
+	}
+	size := int(sizePlusOne - 1)
+	if size < 0 || *pos+size > len(b) {
+		return false
+	}
+	*pos += size
+	return true
+}
+
+func readCompactString(b []byte, pos *int) (string, bool) {
+	sizePlusOne, ok := readUvarint(b, pos)
+	if !ok {
+		return "", false
+	}
+	if sizePlusOne == 0 {
+		return "", true // null
+	}
+	size := int(sizePlusOne - 1)
+	if size < 0 || *pos+size > len(b) {
+		return "", false
+	}
+	s := string(b[*pos : *pos+size])
+	*pos += size
+	return s, true
+}
+
+func appendUvarint(dst []byte, v uint64) []byte {
+	var buf [10]byte
+	n := binary.PutUvarint(buf[:], v)
+	return append(dst, buf[:n]...)
+}
+
+func appendCompactString(dst []byte, s string) []byte {
+	dst = appendUvarint(dst, uint64(len(s)+1))
+	return append(dst, s...)
+}
+
 func main() {
 	fmt.Println("Logs from your program will appear here!")
 
@@ -74,12 +125,71 @@ func handleConnection(conn net.Conn) {
 		}
 
 		// Extract API version and correlation id from the request header
-		// Request header (flexible v2): ApiKey int16, ApiVersion int16, CorrelationId int32
+		// Request header (flexible v2): ApiKey int16, ApiVersion int16, CorrelationId int32, ClientId (compact nullable), TAG_BUFFER
 		if len(req) < 8 {
 			continue
 		}
+		apiKey := binary.BigEndian.Uint16(req[0:2])
 		version := binary.BigEndian.Uint16(req[2:4])
 		corr := req[4:8]
+
+		pos := 8
+		if _, ok := readCompactString(req, &pos); !ok { // client_id
+			continue
+		}
+		if !skipTagBuffer(req, &pos) { // request header tags
+			continue
+		}
+
+		if apiKey == 75 { // DescribeTopicPartitions v0
+			// topics compact array
+			topicsPlusOne, ok := readUvarint(req, &pos)
+			if !ok || topicsPlusOne == 0 {
+				continue
+			}
+			if int(topicsPlusOne-1) < 1 {
+				continue
+			}
+			topicName, ok := readCompactString(req, &pos)
+			if !ok {
+				continue
+			}
+			if !skipTagBuffer(req, &pos) { // topic tags
+				continue
+			}
+			if !skipTagBuffer(req, &pos) { // request body tags
+				continue
+			}
+
+			// Response header v1: correlation_id + empty TAG_BUFFER
+			header := make([]byte, 0, 5)
+			header = append(header, corr...)
+			header = append(header, 0) // empty tagged fields
+
+			// Response body
+			body := make([]byte, 0, 64)
+			body = append(body, 0, 0, 0, 0) // throttle_time_ms
+			body = append(body, 2)          // topics compact array length (1 element -> 2)
+			body = append(body, 0, 3)       // error_code: UNKNOWN_TOPIC_OR_PARTITION
+			body = appendCompactString(body, topicName)
+			// topic_id zeros
+			body = append(body,
+				0, 0, 0, 0,
+				0, 0, 0, 0,
+				0, 0, 0, 0,
+				0, 0, 0, 0)
+			body = append(body, 0)          // is_internal: false
+			body = append(body, 1)          // partitions compact array length: 0 elements (N+1)
+			body = append(body, 0, 0, 0, 0) // topic_authorized_operations: 0
+			body = append(body, 0)          // topic TAG_BUFFER
+			body = append(body, 0xff)       // next_cursor: -1 (null)
+			body = append(body, 0)          // response TAG_BUFFER
+
+			msgSize := make([]byte, 4)
+			binary.BigEndian.PutUint32(msgSize, uint32(len(header)+len(body)))
+			conn.Write(append(append(msgSize, header...), body...))
+			continue
+		}
 
 		if version > 4 {
 			errBody := []byte{0, 35}
