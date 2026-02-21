@@ -57,7 +57,7 @@ func handleConnection(conn net.Conn) {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
 				fmt.Println("error reading message size:", err)
 			}
-			continue
+			return
 		}
 		msgLen := int(binary.BigEndian.Uint32(lenBuf))
 		if msgLen <= 0 {
@@ -70,7 +70,7 @@ func handleConnection(conn net.Conn) {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
 				fmt.Println("error reading message body:", err)
 			}
-			continue
+			return
 		}
 
 		// Extract API version and correlation id from the request header
@@ -90,15 +90,10 @@ func handleConnection(conn net.Conn) {
 			continue
 		}
 
-		// Build a richer ApiVersions response (flexible v4) with multiple API keys.
+		// ApiVersions response entries: ApiVersions (18) and DescribeTopicPartitions (75).
 		apiKeys := [][]byte{
-			{0, 0, 0, 0, 0, 9},  // Produce v0-9
-			{0, 1, 0, 0, 0, 16}, // Fetch v0-16
-			{0, 3, 0, 0, 0, 12}, // Metadata v0-12
-			{0, 8, 0, 0, 0, 7},  // OffsetForLeaderEpoch v0-7
-			{0, 9, 0, 0, 0, 7},  // FindCoordinator v0-7
-			{0, 10, 0, 0, 0, 5}, // OffsetCommit v0-5
 			{0, 18, 0, 0, 0, 4}, // ApiVersions v0-4
+			{0, 75, 0, 0, 0, 0}, // DescribeTopicPartitions v0-0
 		}
 
 		body := make([]byte, 0, 64)
