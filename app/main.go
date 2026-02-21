@@ -17,20 +17,47 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
-
 	for {
-		// Read the length prefix (4 bytes)
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handleConnection(conn)
+	}
+}
+
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	// // Read the length prefix (4 bytes)
+	// lenBuf := make([]byte, 4)
+	// if _, err := io.ReadFull(conn, lenBuf); err != nil {
+	// 	if err != io.EOF && err != io.ErrUnexpectedEOF {
+	// 		fmt.Println("error reading message size:", err)
+	// 	}
+	// 	return
+	// }
+	// reqMessageSize := int(binary.BigEndian.Uint32(lenBuf))
+	// if reqMessageSize <= 0 {
+	// 	return // or continue
+	// }
+
+	// // Read the rest of the request based on the length prefix
+	// buffer := make([]byte, reqMessageSize)
+	// if _, err := io.ReadFull(conn, buffer); err != nil {
+	// 	fmt.Println("error reading message body:", err)
+	// 	return
+	// }
+
+	// Read the length prefix (4 bytes)
+	for {
 		lenBuf := make([]byte, 4)
 		if _, err := io.ReadFull(conn, lenBuf); err != nil {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
 				fmt.Println("error reading message size:", err)
 			}
-			return
+			continue
 		}
 		msgLen := int(binary.BigEndian.Uint32(lenBuf))
 		if msgLen <= 0 {
@@ -43,7 +70,7 @@ func main() {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
 				fmt.Println("error reading message body:", err)
 			}
-			return
+			continue
 		}
 
 		// Extract API version and correlation id from the request header
@@ -87,5 +114,6 @@ func main() {
 		msgSize := make([]byte, 4)
 		binary.BigEndian.PutUint32(msgSize, uint32(len(corr)+len(body)))
 		conn.Write(append(append(msgSize, corr...), body...))
+
 	}
 }
