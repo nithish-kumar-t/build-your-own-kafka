@@ -41,9 +41,18 @@ func main() {
 		msgSize := []byte{0, 0, 0, byte(len(corr) + len(err))}
 		conn.Write(append(append(msgSize, corr...), err...))
 	} else {
-		versions := append([]byte{0, 0}, []byte{0, byte(version)}...)
-
-		msgSize := []byte{0, 0, 0, byte(len(versions) + len(corr))}
-		conn.Write(append(append(msgSize, corr...), versions...))
+		body := []byte{
+			0, 0, // error_code: 0
+			2,     // api_keys array length: 1 (COMPACT_ARRAY uses N+1)
+			0, 18, // api_key: 18 (ApiVersions)
+			0, 0, // min_version: 0
+			0, 4, // max_version: 4
+			0,          // TAG_BUFFER: empty
+			0, 0, 0, 0, // throttle_time_ms: 0
+			0, // TAG_BUFFER: empty
+		}
+		msgSize := make([]byte, 4)
+		binary.BigEndian.PutUint32(msgSize, uint32(len(corr)+len(body)))
+		conn.Write(append(append(msgSize, corr...), body...))
 	}
 }
